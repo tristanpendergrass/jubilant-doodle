@@ -9,7 +9,7 @@ First steps...
 - [x] Fixed number of allies with health, attack, cooldown
 - [x] Open the command panel with button or hotkey, do damage when in that context with button or hotkey
 - [x] Enemy with health and defeat rewards (+attack or +health to team)
-- [ ] Cooldown on abilities
+- [x] Cooldown on abilities
 
 ## Milestone 1.5
 

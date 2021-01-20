@@ -61,6 +61,7 @@ type alias AllyStats =
     { name : String
     , health : Meter
     , command : Command
+    , cooldownTime : Float -- time in seconds for their ability to be off cooldown
     }
 
 
@@ -92,17 +93,17 @@ type alias Model =
 
 ralphStats : AllyStats
 ralphStats =
-    { name = "Ralph", health = Meter.create 100, command = Attack 150 }
+    { name = "Ralph", health = Meter.create 100, command = Attack 150, cooldownTime = 4.0 }
 
 
 sophieStats : AllyStats
 sophieStats =
-    { name = "Sophie", health = Meter.create 100, command = Attack 20 }
+    { name = "Sophie", health = Meter.create 100, command = Attack 20, cooldownTime = 8.0 }
 
 
 ernestStats : AllyStats
 ernestStats =
-    { name = "Ernest", health = Meter.create 100, command = Attack 40 }
+    { name = "Ernest", health = Meter.create 100, command = Attack 40, cooldownTime = 1.0 }
 
 
 init : () -> ( Model, Cmd Msg )
@@ -247,16 +248,36 @@ update msg model =
             let
                 updateAlly : Ally -> Ally
                 updateAlly ally =
-                    let
-                        cooldown =
-                            ally.cooldown
+                    case ally.cooldown of
+                        OffCooldown ->
+                            ally
 
-                        tickOutcome =
-                            Ticker.advance
-                    in
-                    ally
+                        OnCooldown ticker ->
+                            let
+                                modifiedDelta =
+                                    delta / ally.stats.cooldownTime
+
+                                tickOutcome =
+                                    Ticker.advance modifiedDelta ticker
+                            in
+                            case tickOutcome of
+                                Ticker.NoTick newCooldown ->
+                                    { ally | cooldown = OnCooldown newCooldown }
+
+                                Ticker.Ticked _ _ ->
+                                    { ally | cooldown = OffCooldown }
             in
-            ( { model | game = Fight { fightData | allyOne = updateAlly fightData.allyOne } }, Cmd.none )
+            ( { model
+                | game =
+                    Fight
+                        { fightData
+                            | allyOne = updateAlly fightData.allyOne
+                            , allyTwo = updateAlly fightData.allyTwo
+                            , allyThree = updateAlly fightData.allyThree
+                        }
+              }
+            , Cmd.none
+            )
 
 
 
@@ -352,8 +373,8 @@ renderAllies fightData =
                     OffCooldown ->
                         button [ onClick (OpenCommandPanel position) ] [ text "Command" ]
 
-                    OnCooldown _ ->
-                        div [] [ text "on cooldown" ]
+                    OnCooldown ticker ->
+                        div [] [ text <| "on cooldown (" ++ String.fromInt (Ticker.toPercent ticker) ++ ")" ]
                 ]
     in
     div []
