@@ -11,14 +11,14 @@ First steps...
 - [x] Enemy with health and defeat rewards (+attack or +health to team)
 - [x] Cooldown on abilities
 
-## Milestone 1.5
+## Milestone 1.5 (Visual polish)
 
 Visual polish
 
-- [ ] Better visuals for health bars on allies and enemy
-- [ ] Better visuals for ally cooldowns
-- [ ] Portraits for allies and enemy
-- [ ] Make buttons look like buttons
+- [x] Better visuals for health bars on allies and enemy
+- [x] Better visuals for ally cooldowns
+- [x] Portraits for allies and enemy
+- [ ] Sound effect
 
 ## Milestone 2
 
@@ -28,6 +28,10 @@ Now you're getting hit back.
 - [ ] Enemies do attacks on units that have to be dodged.
 - [ ] Loss state, and a restart button
 - [ ] Enemies can reward gold
+
+## Milestone 2.5 (Visual polish)
+
+- [ ] Consistent theme for showing keyboard shortcuts (black background, white text, gold border?)
 
 ## Milestone 3
 

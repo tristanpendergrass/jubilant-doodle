@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Events
@@ -59,15 +59,17 @@ type alias FightData =
 
 type alias AllyStats =
     { name : String
-    , health : Meter
+    , maxHealth : Int
     , command : Command
     , cooldownTime : Float -- time in seconds for their ability to be off cooldown
+    , avatar : String
     }
 
 
 type alias Ally =
     { stats : AllyStats
     , cooldown : Cooldown
+    , health : Meter
     }
 
 
@@ -93,17 +95,17 @@ type alias Model =
 
 ralphStats : AllyStats
 ralphStats =
-    { name = "Ralph", health = Meter.create 100, command = Attack 150, cooldownTime = 4.0 }
+    { name = "Ralph", maxHealth = 100, command = Attack 150, cooldownTime = 4.0, avatar = "derp_cropped.png" }
 
 
 sophieStats : AllyStats
 sophieStats =
-    { name = "Sophie", health = Meter.create 100, command = Attack 20, cooldownTime = 8.0 }
+    { name = "Sophie", maxHealth = 100, command = Attack 20, cooldownTime = 8.0, avatar = "derp2_cropped.png" }
 
 
 ernestStats : AllyStats
 ernestStats =
-    { name = "Ernest", health = Meter.create 100, command = Attack 40, cooldownTime = 1.0 }
+    { name = "Ernest", maxHealth = 100, command = Attack 40, cooldownTime = 1.0, avatar = "derp3_cropped.png" }
 
 
 init : () -> ( Model, Cmd Msg )
@@ -111,10 +113,10 @@ init _ =
     let
         initialFightData : FightData
         initialFightData =
-            { allyOne = { stats = ralphStats, cooldown = OffCooldown }
-            , allyTwo = { stats = sophieStats, cooldown = OffCooldown }
-            , allyThree = { stats = ernestStats, cooldown = OffCooldown }
-            , enemy = { name = "Shrek", health = Meter.create 300, reward = BonusAttack }
+            { allyOne = { stats = ralphStats, cooldown = OffCooldown, health = Meter.create ralphStats.maxHealth }
+            , allyTwo = { stats = sophieStats, cooldown = OffCooldown, health = Meter.create sophieStats.maxHealth }
+            , allyThree = { stats = ernestStats, cooldown = OffCooldown, health = Meter.create ernestStats.maxHealth }
+            , enemy = { name = "Cave Turkey", health = Meter.create 300, reward = BonusAttack }
             , commandPanel = Closed
             , bonusAttack = 1.0
             }
@@ -132,6 +134,9 @@ nextEnemy enemy =
 
 
 -- UPDATE
+
+
+port emitSound : String -> Cmd msg
 
 
 type Msg
@@ -174,13 +179,26 @@ update msg model =
 
                 OffCooldown ->
                     let
+                        newCommandPanel =
+                            case fightData.commandPanel of
+                                Open openAlly ->
+                                    if openAlly == ally then
+                                        Closed
+
+                                    else
+                                        Open ally
+
+                                _ ->
+                                    Open ally
+
                         newFightData =
                             { fightData
-                                | commandPanel = Open ally
+                                | commandPanel = newCommandPanel
                             }
                     in
-                    ( { model | game = Fight newFightData }, Cmd.none )
+                    ( { model | game = Fight newFightData }, emitSound "interface3" )
 
+        -- change
         ( Fight fightData, CloseCommandPanel ) ->
             let
                 newFightData : FightData
@@ -331,6 +349,59 @@ subscriptions model =
 -- VIEW
 
 
+selectedColor : String
+selectedColor =
+    "bg-blue-500"
+
+
+renderHealth : Meter -> Html Msg
+renderHealth health =
+    let
+        current =
+            Meter.getValue health
+
+        max =
+            Meter.getMax health
+
+        percent =
+            toFloat current / toFloat max
+
+        pixelWidthMax =
+            200
+
+        pixelWidthCurrent =
+            round (pixelWidthMax * percent)
+
+        maxHealthValue =
+            String.fromInt pixelWidthMax ++ "px"
+
+        currentHealthValue =
+            String.fromInt pixelWidthCurrent ++ "px"
+    in
+    div [ style "width" maxHealthValue, class "relative h-6 bg-red-500" ]
+        [ div [ style "width" currentHealthValue, class "absolute top-0 left-0 bg-green-600 h-full" ] []
+        ]
+
+
+renderCooldown : Cooldown -> Html Msg
+renderCooldown cooldown =
+    case cooldown of
+        OffCooldown ->
+            div [ style "width" "200px", class "relative h-2 bg-yellow-300" ] []
+
+        OnCooldown ticker ->
+            let
+                width =
+                    2 * Ticker.toPercent ticker
+
+                widthStyle =
+                    String.fromInt width ++ "px"
+            in
+            div [ style "width" "200px", class "relative h-2 bg-yellow-600" ]
+                [ div [ style "width" widthStyle, class "absolute top-0 left-0 bg-yellow-300 h-full" ] []
+                ]
+
+
 renderAllies : FightData -> Html Msg
 renderAllies fightData =
     let
@@ -351,33 +422,62 @@ renderAllies fightData =
                         Third ->
                             "3"
 
-                isCommandPanelOpen =
+                isAllySelected =
                     case fightData.commandPanel of
                         Closed ->
                             False
 
                         Open openAlly ->
                             openAlly == ally
+
+                allyName =
+                    div
+                        [ class <|
+                            if isAllySelected then
+                                "underline"
+
+                            else
+                                ""
+                        , class "text-lg font-thin leading-tight"
+                        ]
+                        [ text stats.name ]
+
+                renderPortrait =
+                    div [ class "relative" ]
+                        [ div [ class "w-24 h-24 border border-gray-100" ]
+                            [ img [ class "object-cover h-full", src ally.stats.avatar ] []
+                            ]
+                        , div [ class "absolute top-0 left-0 mt-1 ml-1 border border-gray-100 w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-900 rounded" ] [ text <| positionText ]
+                        ]
+
+                renderOpenCommandPanel =
+                    case ally.cooldown of
+                        OffCooldown ->
+                            button [ onClick <| OpenCommandPanel position ] [ text "Command" ]
+
+                        OnCooldown _ ->
+                            div [] []
             in
-            div [ class "flex space-x-2" ]
-                [ div
-                    [ class <|
-                        if isCommandPanelOpen then
-                            "underline"
+            div
+                [ class "flex items-stretch space-x-2 p-2"
+                , class <|
+                    if isAllySelected then
+                        selectedColor
 
-                        else
-                            ""
+                    else
+                        ""
+                ]
+                [ renderPortrait
+                , div [ class "flex flex-col justify-start flex-grow space-y-2" ]
+                    [ allyName
+                    , renderHealth ally.health
+                    , renderCooldown ally.cooldown
                     ]
-                    [ text <| "(" ++ positionText ++ ") " ++ stats.name ]
-                , case ally.cooldown of
-                    OffCooldown ->
-                        button [ onClick (OpenCommandPanel position) ] [ text "Command" ]
-
-                    OnCooldown ticker ->
-                        div [] [ text <| "on cooldown (" ++ String.fromInt (Ticker.toPercent ticker) ++ ")" ]
+                , div [ class "flex flex-col justify-center" ]
+                    [ renderOpenCommandPanel ]
                 ]
     in
-    div []
+    div [ class "flex flex-col" ]
         [ renderAlly fightData.allyOne First
         , renderAlly fightData.allyTwo Second
         , renderAlly fightData.allyThree Third
@@ -400,8 +500,8 @@ renderCommandPanel { commandPanel, bonusAttack } =
                                 |> (*) bonusAttack
                                 |> round
             in
-            div [ class "w-full relative" ]
-                [ button [ class "absolute top-0 right-0", onClick CloseCommandPanel ] [ text "(q) Close" ]
+            div [ class "w-full h-full relative p-2", class selectedColor ]
+                [ button [ class "absolute top-0 right-0 mr-2 mt-2", onClick CloseCommandPanel ] [ text "(q) Close" ]
                 , div [] [ text "Command Panel" ]
                 , button [ onClick CommandAttack ] [ text <| "(a) Attack - " ++ String.fromInt damage ]
                 ]
@@ -410,15 +510,25 @@ renderCommandPanel { commandPanel, bonusAttack } =
 renderEnemy : FightData -> Html Msg
 renderEnemy { enemy } =
     let
-        currentHealth =
-            Meter.getValue enemy.health
+        renderName : Html Msg
+        renderName =
+            div
+                [ class "text-lg font-thin leading-tight"
+                ]
+                [ text "Cave Turkey" ]
 
-        maxHealth =
-            Meter.getMax enemy.health
+        renderPortrait =
+            div [ class "w-24 h-24 border border-gray-100" ]
+                [ img [ class "object-cover h-full", src "caveturkey.png" ] []
+                ]
     in
-    div []
-        [ div [] [ text enemy.name ]
-        , div [] [ text <| "Health: " ++ String.fromInt currentHealth ++ " / " ++ String.fromInt maxHealth ]
+    div
+        [ class "flex space-x-2 p-2 justify-center mt-24" ]
+        [ div [ class "flex flex-col justify-start items-end space-y-2" ]
+            [ renderName
+            , renderHealth enemy.health
+            ]
+        , renderPortrait
         ]
 
 
@@ -439,10 +549,10 @@ view model =
                             ""
 
                 sectionClass =
-                    "flex-1 border border-gray-100 shadow h-72 p-2"
+                    "flex-1 border border-gray-100 h-full overflow-auto"
             in
-            div [ class "w-full flex space-x-4 mt-4" ]
-                [ div [ class sectionClass ] [ renderAllies fightData ]
+            div [ class "w-screen h-screen flex space-x-4 p-4" ]
+                [ div [ class sectionClass, class "p-2" ] [ renderAllies fightData ]
                 , div [ class sectionClass ] [ renderCommandPanel fightData ]
-                , div [ class sectionClass ] [ renderEnemy fightData ]
+                , div [ class sectionClass, class "p-2" ] [ renderEnemy fightData ]
                 ]
